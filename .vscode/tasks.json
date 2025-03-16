@@ -1,0 +1,16 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: build",
+            "type": "shell",
+            "command": "rm -rf bin && cd build && rm -rf * && cmake -DCMAKE_BUILD_TYPE=Debug .. && make -j",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "detail": "Custom CMake build task"
+        }
+    ]
+}

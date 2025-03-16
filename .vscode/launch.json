@@ -1,0 +1,58 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "encoder",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/umake/gcc-11.4/x86_64/debug/EncoderApp",
+            "args": [
+                     "-i", "${workspaceFolder}/data/FourPeople_1280x720_60.yuv",
+                     "-c", "${workspaceFolder}/cfg/encoder_randomaccess_vtm.cfg", 
+                     "-c", "${workspaceFolder}/cfg/per-sequence/FourPeople_mod.cfg", 
+                     "-f", "600", 
+                     "--SIMD=SCALAR"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }, 
+        {
+            "name": "decoder",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/bin/umake/gcc-11.4/x86_64/debug/DecoderApp",
+            "args": [
+                     "-b", "${workspaceFolder}/outputs/str_FourPeople_22.bin",
+                     "-o", "${workspaceFolder}/test_dec.yuv", 
+                     "--SIMD=SCALAR"],  
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "CMake: build",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}

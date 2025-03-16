@@ -9,7 +9,7 @@ deploy
 *.sdf
 *.suo
 .vs/
-.vscode/
+# .vscode/
 *.blg
 *.bbl
 *.pyc
