@@ -532,7 +532,7 @@ void InterPrediction::xPredInterUni(const PredictionUnit &pu, const RefPicList &
     }
   }
 }
-
+//jh: whether to apply BDOF
 void InterPrediction::xPredInterBi(PredictionUnit &pu, PelUnitBuf &pcYuvPred, const bool luma, const bool chroma,
                                    PelUnitBuf *yuvPredTmp, const bool isSubPu)
 {
@@ -553,7 +553,7 @@ void InterPrediction::xPredInterBi(PredictionUnit &pu, PelUnitBuf &pcYuvPred, co
       bioApplied = false;
     }
     else
-    {
+    { //jh: BDOF only for symmetric bi-pred, ensure that PU size meets DMVR/BDOF, disabled if CIIP (Composite Intra Inter Prediction) or Symmetric Motion Vector Difference (SMVD) is enabled.
       bioApplied = PU::isSimpleSymmetricBiPred(pu) && PU::dmvrBdofSizeCheck(pu) && !pu.ciipFlag && !pu.cu->smvdMode;
     }
   }
@@ -1186,7 +1186,7 @@ void InterPrediction::applyBiOptFlow(const PredictionUnit &pu, const CPelUnitBuf
   int           heightG = height + 2 * BIO_EXTEND_SIZE;
   int           widthG = width + 2 * BIO_EXTEND_SIZE;
   int           offsetPos = widthG*BIO_EXTEND_SIZE + BIO_EXTEND_SIZE;
-
+  //jh: buffers to store spatial gradients
   Pel*          gradX0 = m_gradX0;
   Pel*          gradX1 = m_gradX1;
   Pel*          gradY0 = m_gradY0;
@@ -1210,7 +1210,7 @@ void InterPrediction::applyBiOptFlow(const PredictionUnit &pu, const CPelUnitBuf
     Pel* dstTempPtr = m_filteredBlockTmp[2 + refList][COMPONENT_Y] + stridePredMC + 1;
     Pel* gradY = (refList == 0) ? m_gradY0 : m_gradY1;
     Pel* gradX = (refList == 0) ? m_gradX0 : m_gradX1;
-
+    //jh: compute spatial gradients Gx Gy eq (53-54)
     xBioGradFilter(dstTempPtr, stridePredMC, widthG, heightG, widthG, gradX, gradY,
                    clipBitDepths[toChannelType(COMPONENT_Y)]);
     Pel* padStr = m_filteredBlockTmp[2 + refList][COMPONENT_Y] + 2 * stridePredMC + 2;
@@ -1232,20 +1232,21 @@ void InterPrediction::applyBiOptFlow(const PredictionUnit &pu, const CPelUnitBuf
   const int   offset = (1 << (shiftNum - 1)) + 2 * IF_INTERNAL_OFFS;
   const int   limit = ( 1 << 4 ) - 1;
 
-  int xUnit = (width >> 2);
+  int xUnit = (width >> 2); // jh: 4x4 sub-block based motion refinement to reduce complexity
   int yUnit = (height >> 2);
 
   Pel *dstY0 = dstY;
   gradX0 = m_gradX0; gradX1 = m_gradX1;
   gradY0 = m_gradY0; gradY1 = m_gradY1;
-
+  //jh: perform bdof refinement on 4x4 sub-blocks
   for (int yu = 0; yu < yUnit; yu++)
   {
     for (int xu = 0; xu < xUnit; xu++)
     {
-      int tmpx = 0, tmpy = 0;
-      int sumAbsGX = 0, sumAbsGY = 0, sumDIX = 0, sumDIY = 0;
-      int sumSignGY_GX = 0;
+      //jh: initilize motoin refinement (vx, vy), auto, cross-correlcation parameters (S1-S5)
+      int tmpx = 0, tmpy = 0; // (vx, vy)
+      int sumAbsGX = 0, sumAbsGY = 0, sumDIX = 0, sumDIY = 0; // S1, S2, S4, S5
+      int sumSignGY_GX = 0; // S3
 
       Pel* pGradX0Tmp = m_gradX0 + (xu << 2) + (yu << 2) * widthG;
       Pel* pGradX1Tmp = m_gradX1 + (xu << 2) + (yu << 2) * widthG;
@@ -1254,14 +1255,15 @@ void InterPrediction::applyBiOptFlow(const PredictionUnit &pu, const CPelUnitBuf
       const Pel* SrcY1Tmp = srcY1 + (xu << 2) + (yu << 2) * src1Stride;
       const Pel* SrcY0Tmp = srcY0 + (xu << 2) + (yu << 2) * src0Stride;
 
+      //jh: computed auto, cross-correlcation parameters (S1-S5)
       g_pelBufOP.calcBIOSums(SrcY0Tmp, SrcY1Tmp, pGradX0Tmp, pGradX1Tmp, pGradY0Tmp, pGradY1Tmp, xu, yu, src0Stride, src1Stride, widthG, bitDepth, &sumAbsGX, &sumAbsGY, &sumDIX, &sumDIY, &sumSignGY_GX);
-      tmpx = (sumAbsGX == 0 ? 0 : rightShiftMSB(4 * sumDIX, sumAbsGX));
-      tmpx = Clip3(-limit, limit, tmpx);
+      tmpx = (sumAbsGX == 0 ? 0 : rightShiftMSB(4 * sumDIX, sumAbsGX)); //jh: compute vx eq (24) - (S4/S1) ? different from paper, same in vicue blogpost
+      tmpx = Clip3(-limit, limit, tmpx); 
 
-      const int tmpData = sumSignGY_GX * tmpx >> 1;
+      const int tmpData = sumSignGY_GX * tmpx >> 1; //jh: vx * S3
 
-      tmpy = (sumAbsGY == 0 ? 0 : rightShiftMSB((4 * sumDIY - tmpData), sumAbsGY));
-      tmpy = Clip3(-limit, limit, tmpy);
+      tmpy = (sumAbsGY == 0 ? 0 : rightShiftMSB((4 * sumDIY - tmpData), sumAbsGY)); //jh: compute vy eq (24) - (S4/S1) ? different from paper, same in vicue blogpost
+      tmpy = Clip3(-limit, limit, tmpy); //jh: values clipped
 
       srcY0Temp = srcY0 + (stridePredMC + 1) + ((yu*src0Stride + xu) << 2);
       srcY1Temp = srcY1 + (stridePredMC + 1) + ((yu*src0Stride + xu) << 2);
@@ -1269,8 +1271,9 @@ void InterPrediction::applyBiOptFlow(const PredictionUnit &pu, const CPelUnitBuf
       gradX1 = m_gradX1 + offsetPos + ((yu*widthG + xu) << 2);
       gradY0 = m_gradY0 + offsetPos + ((yu*widthG + xu) << 2);
       gradY1 = m_gradY1 + offsetPos + ((yu*widthG + xu) << 2);
-
+    
       dstY0 = dstY + ((yu*dstStride + xu) << 2);
+      //jh: adjust bi-prediction based on comptued motion vectors tmpx, tmpy ep (33)
       xAddBIOAvg4(srcY0Temp, src0Stride, srcY1Temp, src1Stride, dstY0, dstStride, gradX0, gradX1, gradY0, gradY1, widthG, (1 << 2), (1 << 2), (int)tmpx, (int)tmpy, shiftNum, offset, clpRng);
     }  // xu
   }  // yu
@@ -1321,7 +1324,7 @@ void InterPrediction::xWeightedAverage(const PredictionUnit &pu, const CPelUnitB
       return;
     }
     if (bioApplied)
-    {
+    { //jh: apply bio
       const int  src0Stride = pu.lwidth() + 2 * BIO_EXTEND_SIZE + 2;
       const int  src1Stride = pu.lwidth() + 2 * BIO_EXTEND_SIZE + 2;
       const Pel* pSrcY0 = m_filteredBlockTmp[2][COMPONENT_Y] + 2 * src0Stride + 2;
@@ -1396,7 +1399,7 @@ void InterPrediction::xWeightedAverage(const PredictionUnit &pu, const CPelUnitB
     }
   }
 }
-
+// jh: start here
 void InterPrediction::motionCompensation(PredictionUnit &pu, PelUnitBuf &predBuf, const RefPicList eRefPicList,
                                          const bool luma, const bool chroma, PelUnitBuf *predBufWOBIO,
                                          const bool isSubPu)
@@ -1460,7 +1463,7 @@ void InterPrediction::motionCompensation(PredictionUnit &pu, PelUnitBuf &predBuf
         bioApplied = false;
       }
       else
-      {
+      { 
         bioApplied = PU::isSimpleSymmetricBiPred(pu) && PU::dmvrBdofSizeCheck(pu) && !pu.ciipFlag && !pu.cu->smvdMode;
       }
 

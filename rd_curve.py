@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
     plt.xlabel('Bitrate (kbps)')
     plt.ylabel('PSNR (dB)')
-    plt.title('RD Curve')
+    plt.title(f'{args.data} RD Curve')
     plt.legend()
     plt.grid(True)
 

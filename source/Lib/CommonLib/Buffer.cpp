@@ -98,8 +98,8 @@ void addBIOAvgCore(const Pel *src0, ptrdiff_t src0Stride, const Pel *src1, ptrdi
   {
     for (int x = 0; x < width; x += 4)
     {
-      b = tmpx * (gradX0[x] - gradX1[x]) + tmpy * (gradY0[x] - gradY1[x]);
-      dst[x] = ClipPel(rightShift((src0[x] + src1[x] + b + offset), shift), clpRng);
+      b = tmpx * (gradX0[x] - gradX1[x]) + tmpy * (gradY0[x] - gradY1[x]); // jh: bdof offet eq (34)
+      dst[x] = ClipPel(rightShift((src0[x] + src1[x] + b + offset), shift), clpRng); // jh: eq (33) but shift 7? not shift 1 (different from the paper)
 
       b = tmpx * (gradX0[x + 1] - gradX1[x + 1]) + tmpy * (gradY0[x + 1] - gradY1[x + 1]);
       dst[x + 1] = ClipPel(rightShift((src0[x + 1] + src1[x + 1] + b + offset), shift), clpRng);
@@ -122,12 +122,13 @@ void gradFilterCore(Pel *pSrc, ptrdiff_t srcStride, int width, int height, ptrdi
   Pel* srcTmp = pSrc + srcStride + 1;
   Pel* gradXTmp = gradX + gradStride + 1;
   Pel* gradYTmp = gradY + gradStride + 1;
-  int  shift1 = 6;
+  int  shift1 = 6; //bit shifting 
 
   for (int y = 0; y < (height - 2 * BIO_EXTEND_SIZE); y++)
   {
     for (int x = 0; x < (width - 2 * BIO_EXTEND_SIZE); x++)
     {
+      //jh: equation (53-54), compute sptial gradient Gx Gy
       gradYTmp[x] = ( srcTmp[x + srcStride] >> shift1 ) - ( srcTmp[x - srcStride] >> shift1 );
       gradXTmp[x] = ( srcTmp[x + 1] >> shift1 ) - ( srcTmp[x - 1] >> shift1 );
     }
@@ -136,7 +137,7 @@ void gradFilterCore(Pel *pSrc, ptrdiff_t srcStride, int width, int height, ptrdi
     srcTmp += srcStride;
   }
 
-  if (PAD)
+  if (PAD) //jh: gradient padding, Copying the first and last valid gradient values to avoid out-of-bounds errors.
   {
     gradXTmp = gradX + gradStride + 1;
     gradYTmp = gradY + gradStride + 1;
@@ -150,7 +151,7 @@ void gradFilterCore(Pel *pSrc, ptrdiff_t srcStride, int width, int height, ptrdi
       gradYTmp[width - 2 * BIO_EXTEND_SIZE] = gradYTmp[width - 2 * BIO_EXTEND_SIZE - 1];
       gradYTmp += gradStride;
     }
-
+    //jh: Padding the first and last row of gradients (handling vertical edges). Ensures gradients are valid at boundaries.
     gradXTmp = gradX + gradStride;
     gradYTmp = gradY + gradStride;
     ::memcpy(gradXTmp - gradStride, gradXTmp, sizeof(Pel) * (width));
@@ -168,22 +169,22 @@ void calcBIOSumsCore(const Pel *srcY0Tmp, const Pel *srcY1Tmp, Pel *gradX0, Pel 
 {
   int shift4 = 4;
   int shift5 = 1;
-
+  //jh: iterating over 6x6 block. matches window size from the paper, eq (45-)
   for (int y = 0; y < 6; y++)
   {
     for (int x = 0; x < 6; x++)
     {
-      int tmpGX = (gradX0[x] + gradX1[x]) >> shift5;
-      int tmpGY = (gradY0[x] + gradY1[x]) >> shift5;
-      int tmpDI = (int)((srcY1Tmp[x] >> shift4) - (srcY0Tmp[x] >> shift4));
-      *sumAbsGX += (tmpGX < 0 ? -tmpGX : tmpGX);
-      *sumAbsGY += (tmpGY < 0 ? -tmpGY : tmpGY);
-      *sumDIX += (tmpGX < 0 ? -tmpDI : (tmpGX == 0 ? 0 : tmpDI));
-      *sumDIY += (tmpGY < 0 ? -tmpDI : (tmpGY == 0 ? 0 : tmpDI));
-      *sumSignGY_GX += (tmpGY < 0 ? -tmpGX : (tmpGY == 0 ? 0 : tmpGX));
+      int tmpGX = (gradX0[x] + gradX1[x]) >> shift5; //jh: horizontal grad eq (50)
+      int tmpGY = (gradY0[x] + gradY1[x]) >> shift5; //jh: vertical grad eq (51)
+      int tmpDI = (int)((srcY1Tmp[x] >> shift4) - (srcY0Tmp[x] >> shift4)); //jh: temporal grad eq (52)
+      *sumAbsGX += (tmpGX < 0 ? -tmpGX : tmpGX); //jh: S1 eq (45)
+      *sumAbsGY += (tmpGY < 0 ? -tmpGY : tmpGY); //jh: S2 eq (46)
+      *sumDIX += (tmpGX < 0 ? -tmpDI : (tmpGX == 0 ? 0 : tmpDI)); //jh: S4 eq (47)
+      *sumDIY += (tmpGY < 0 ? -tmpDI : (tmpGY == 0 ? 0 : tmpDI)); //jh: S5 eq (47)
+      *sumSignGY_GX += (tmpGY < 0 ? -tmpGX : (tmpGY == 0 ? 0 : tmpGX)); //jh: S3 eq (47)
 
     }
-    srcY1Tmp += src1Stride;
+    srcY1Tmp += src1Stride; //jh: moving to next row
     srcY0Tmp += src0Stride;
     gradX0 += widthG;
     gradX1 += widthG;
