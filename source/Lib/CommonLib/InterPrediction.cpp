@@ -1477,6 +1477,7 @@ void InterPrediction::motionCompensation(PredictionUnit &pu, PelUnitBuf &predBuf
                        ( refIdx1 < 0 ? false : pu.cu->slice->getRefPic( REF_PIC_LIST_1, refIdx1 )->isRefScaled( pu.cs->sps, pu.cs->pps ) );
     bioApplied = refIsScaled ? false : bioApplied;
     bool dmvrApplied = !isSubPu && PU::checkDMVRCondition(pu);
+    //jh: 16x16 is the max unit size for BDOF processing 
     if ((pu.lumaSize().width > MAX_BDOF_APPLICATION_REGION || pu.lumaSize().height > MAX_BDOF_APPLICATION_REGION)
         && pu.mergeType != MergeType::SUBPU_ATMVP && (bioApplied && !dmvrApplied))
     {
@@ -1968,7 +1969,7 @@ void InterPrediction::xProcessDMVR(PredictionUnit &pu, PelUnitBuf &pcYuvDst, con
         xDmvrIntegerRefine(bd, minCost, deltaMv, sadPtr, dx, dy);
         sadPtr += deltaMv.ver * DMVR_SPAN + deltaMv.hor;
       }
-
+      //jh: early termination
       const bool applyBdofSubPu = applyBdof && minCost >= 2 * dx * dy;
 
       const bool doSubpelRefine =
